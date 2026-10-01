@@ -1,139 +1,91 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 import 'package:openvpn_flutter/openvpn_flutter.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const MaterialApp(
+    debugShowCheckedModeBanner: false,
+    home: VPNHomeScreen(),
+  ));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class VPNHomeScreen extends StatefulWidget {
+  const VPNHomeScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const VpnScreen(),
-    );
-  }
+  State<VPNHomeScreen> createState() => _VPNHomeScreenState();
 }
 
-class VpnServer {
-  final String countryLong;
-  final String countryShort;
-  final String ip;
-  final String configBase64;
-
-  VpnServer({
-    required this.countryLong,
-    required this.countryShort,
-    required this.ip,
-    required this.configBase64,
-  });
-
-  String get ovpnConfig {
-    try {
-      return utf8.decode(base64.decode(configBase64.trim()));
-    } catch (e) {
-      return '';
-    }
-  }
-}
-
-class VpnScreen extends StatefulWidget {
-  const VpnScreen({super.key});
-
-  @override
-  State<VpnScreen> createState() => _VpnScreenState();
-}
-
-class _VpnScreenState extends State<VpnScreen> {
+class _VPNHomeScreenState extends State<VPNHomeScreen> {
   late OpenVPN engine;
+  VpnStatus? status;
   VPNStage? stage;
-  List<VpnServer> serverList = [];
-  VpnServer? selectedServer;
-  bool isLoadingList = false;
+  bool isConnected = false;
+  List<dynamic> servers = [];
+  bool isLoading = true;
+  int selectedIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    initVpn();
-    fetchServers();
-  }
-
-  void initVpn() {
-    engine = OpenVPN();
-    engine.initialize(
-      groupIdentifier: "group.com.myvpn.app",
-      providerBundleIdentifier: "id.flutter.openvpn.myvpn",
-      localizedDescription: "My VPN App",
-      onVpnStageChanged: (s, message) {
+    engine = OpenVPN(
+      onVpnStatusChanged: (s) => setState(() => status = s),
+      onVpnStageChanged: (s, l) {
         setState(() {
           stage = s;
+          isConnected = s == VPNStage.connected;
         });
       },
-      onVpnStatusChanged: (data) {},
     );
+    engine.initialize(
+      groupIdentifier: "group.com.example.myvpnapp",
+      providerBundleIdentifier: "com.example.myvpnapp.VPNExtension",
+      localizedDescription: "My VPN Connection",
+    );
+    fetchVPNGateServers();
   }
 
-  Future<void> fetchServers() async {
-    setState(() {
-      isLoadingList = true;
-    });
+  Future<void> fetchVPNGateServers() async {
     try {
       final response = await http.get(Uri.parse('https://www.vpngate.net/api/iphone/'));
       if (response.statusCode == 200) {
-        final lines = response.body.split('\n');
-        List<VpnServer> list = [];
-        for (var line in lines) {
-          if (line.startsWith('*') || line.startsWith('#') || line.trim().isEmpty) continue;
-          final parts = line.split(',');
-          if (parts.length >= 15) {
-            final countryLong = parts[5];
-            final countryShort = parts[6];
-            final ip = parts[1];
-            final base64Config = parts[14];
-            if (base64Config.isNotEmpty && base64Config.length > 50) {
-              list.add(VpnServer(
-                countryLong: countryLong,
-                countryShort: countryShort,
-                ip: ip,
-                configBase64: base64Config,
-              ));
-            }
+        List<String> lines = response.body.split('\n');
+        List<dynamic> list = [];
+        for (int i = 2; i < lines.length; i++) {
+          List<String> data = lines[i].split(',');
+          if (data.length > 14) {
+            list.add({
+              'country': data[5],
+              'countryLong': data[6],
+              'ip': data[1],
+              'config': data[14],
+            });
           }
         }
         setState(() {
-          serverList = list;
-          if (list.isNotEmpty) {
-            selectedServer = list.first;
-          }
+          servers = list;
+          isLoading = false;
         });
       }
     } catch (e) {
-      // ignore
-    } finally {
-      setState(() {
-        isLoadingList = false;
-      });
+      setState(() => isLoading = false);
     }
   }
 
-  void toggleVpn() {
-    if (selectedServer == null) return;
-    if (stage == VPNStage.connected) {
+  void toggleVPN() {
+    if (isConnected) {
       engine.disconnect();
     } else {
-      final config = selectedServer!.ovpnConfig;
-      if (config.isNotEmpty) {
+      if (servers.isNotEmpty) {
+        String configBase64 = servers[selectedIndex]['config'];
+        String config = utf8.decode(base64.decode(configBase64));
         engine.connect(
           config,
-          selectedServer!.countryLong,
+          servers[selectedIndex]['countryLong'],
           username: '',
           password: '',
-          bypassConfig: true,
+          certIsRequired: false,
         );
       }
     }
@@ -142,80 +94,75 @@ class _VpnScreenState extends State<VpnScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFF1E1E2C),
       appBar: AppBar(
-        title: const Text('Live Multi-Country VPN'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: fetchServers,
-          ),
-        ],
+        title: const Text("My VPN", style: TextStyle(color: Colors.white)),
+        backgroundColor: const Color(0xFF2D2D44),
+        elevation: 0,
+        centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Card(
-              color: Colors.grey[900],
-              child: ListTile(
-                title: Text(
-                  'Status: ${stage?.name.toUpperCase() ?? "DISCONNECTED"}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(selectedServer != null
-                    ? 'Selected: ${selectedServer!.countryLong} (${selectedServer!.ip})'
-                    : 'No Server Selected'),
-                trailing: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: stage == VPNStage.connected ? Colors.red : Colors.green,
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.cyanAccent))
+          : Column(
+              children: [
+                const SizedBox(height: 30),
+                Center(
+                  child: GestureDetector(
+                    onTap: toggleVPN,
+                    child: Container(
+                      width: 160,
+                      height: 160,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isConnected ? Colors.greenAccent : Colors.redAccent,
+                        boxShadow: [
+                          BoxShadow(
+                            color: (isConnected ? Colors.greenAccent : Colors.redAccent).withOpacity(0.4),
+                            blurRadius: 20,
+                            spreadRadius: 5,
+                          )
+                        ],
+                      ),
+                      child: Icon(
+                        Icons.power_settings_new,
+                        size: 80,
+                        color: isConnected ? Colors.black : Colors.white,
+                      ),
+                    ),
                   ),
-                  onPressed: toggleVpn,
-                  child: Text(
-                    stage == VPNStage.connected ? 'Disconnect' : 'Connect',
-                    style: const TextStyle(color: Colors.white),
-                  ),
                 ),
-              ),
-            ),
-            const SizedBox(height: 15),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Available Live Country Servers:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: isLoadingList
-                  ? const Center(child: CircularProgressIndicator())
-                  : serverList.isEmpty
-                      ? const Center(child: Text('Click top-right refresh icon.'))
-                      : ListView.builder(
-                          itemCount: serverList.length,
-                          itemBuilder: (context, index) {
-                            final server = serverList[index];
-                            final isSelected = selectedServer == server;
-                            return ListTile(
-                              leading: CircleAvatar(
-                                child: Text(server.countryShort),
-                              ),
-                              title: Text(server.countryLong),
-                              subtitle: Text('IP: ${server.ip}'),
-                              selected: isSelected,
-                              selectedTileColor: Colors.blue.withOpacity(0.2),
-                              onTap: () {
-                                setState(() {
-                                  selectedServer = server;
-                                });
-                              },
-                            );
+                const SizedBox(height: 20),
+                Text(
+                  stage?.toString().split('.').last.toUpperCase() ?? "DISCONNECTED",
+                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 30),
+                Expanded(
+                  child: ListView.builder(
+                    itemCount: servers.length,
+                    itemBuilder: (context, index) {
+                      final server = servers[index];
+                      final isSelected = index == selectedIndex;
+                      return Card(
+                        color: isSelected ? const Color(0xFF3D3D5C) : const Color(0xFF2D2D44),
+                        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        child: ListTile(
+                          leading: const Icon(Icons.vpn_lock, color: Colors.cyanAccent),
+                          title: Text(server['countryLong'], style: const TextStyle(color: Colors.white)),
+                          subtitle: Text("IP: ${server['ip']}", style: const TextStyle(color: Colors.grey)),
+                          trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.greenAccent) : null,
+                          onTap: () {
+                            setState(() {
+                              selectedIndex = index;
+                            });
                           },
                         ),
+                      );
+                    },
+                  ),
+                )
+              ],
             ),
-          ],
-        ),
-      ),
     );
   }
 }
