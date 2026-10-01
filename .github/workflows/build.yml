@@ -26,6 +26,12 @@ jobs:
       - name: Create Android Project Files
         run: flutter create --project-name my_vpn_app --platforms=android .
 
+      - name: Fix Android Build Configuration
+        run: |
+          sed -i 's/minSdkVersion .*/minSdkVersion 21/g' android/app/build.gradle
+          sed -i 's/compileSdkVersion .*/compileSdkVersion 34/g' android/app/build.gradle
+          sed -i 's/targetSdkVersion .*/targetSdkVersion 34/g' android/app/build.gradle
+
       - name: Inject OpenVPN Service & Permissions
         run: |
           cat << 'EOF' > android/app/src/main/AndroidManifest.xml
