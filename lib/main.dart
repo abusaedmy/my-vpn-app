@@ -59,21 +59,23 @@ class _VpnScreenState extends State<VpnScreen> {
   @override
   void initState() {
     super.initState();
-    engine = OpenVPN(
-      onVpnStageChanged: (s, message) {
-        setState(() {
-          stage = s;
-        });
-      },
-      onVpnStatusChanged: (data) {},
-    );
-    engine.connect(
-      '',
-      '',
-      clientLong: 'MyVPN',
-      localizedDescription: 'MyVPN Connection',
-    );
+    initVpn();
     fetchServers();
+  }
+
+  void initVpn() {
+    engine = OpenVPN();
+    engine.initialize(
+      groupIdentifier: "group.com.myvpn.app",
+      providerBundleIdentifier: "id.flutter.openvpn.myvpn",
+      localizedDescription: "My VPN App",
+    );
+
+    engine.onVpnStageChanged = (s, message) {
+      setState(() {
+        stage = s;
+      });
+    };
   }
 
   Future<void> fetchServers() async {
