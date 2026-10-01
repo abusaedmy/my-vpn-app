@@ -1,0 +1,20 @@
+name: my_vpn_app
+description: A Flutter VPN project using OpenVPN.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  openvpn_flutter: ^1.3.4
+  http: ^1.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
