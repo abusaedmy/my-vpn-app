@@ -69,13 +69,13 @@ class _VpnScreenState extends State<VpnScreen> {
       groupIdentifier: "group.com.myvpn.app",
       providerBundleIdentifier: "id.flutter.openvpn.myvpn",
       localizedDescription: "My VPN App",
+      onVpnStageChanged: (s, message) {
+        setState(() {
+          stage = s;
+        });
+      },
+      onVpnStatusChanged: (data) {},
     );
-
-    engine.onVpnStageChanged = (s, message) {
-      setState(() {
-        stage = s;
-      });
-    };
   }
 
   Future<void> fetchServers() async {
