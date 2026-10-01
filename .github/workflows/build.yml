@@ -21,6 +21,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.19.6'
           channel: 'stable'
 
       - name: Create Android Project Files
@@ -28,12 +29,12 @@ jobs:
 
       - name: Fix Android Build Configuration
         run: |
-          find . -name "build.gradle*" -exec sed -i 's/minSdkVersion .*/minSdkVersion 21/g' {} +
-          find . -name "build.gradle*" -exec sed -i 's/compileSdkVersion .*/compileSdkVersion 34/g' {} +
-          find . -name "build.gradle*" -exec sed -i 's/targetSdkVersion .*/targetSdkVersion 34/g' {} +
-          find . -name "build.gradle.kts" -exec sed -i 's/minSdk = .*/minSdk = 21/g' {} +
-          find . -name "build.gradle.kts" -exec sed -i 's/compileSdk = .*/compileSdk = 34/g' {} +
-          find . -name "build.gradle.kts" -exec sed -i 's/targetSdk = .*/targetSdk = 34/g' {} +
+          find android -name "build.gradle" -exec sed -i 's/compileSdkVersion .*/compileSdkVersion 34/g' {} +
+          find android -name "build.gradle" -exec sed -i 's/minSdkVersion .*/minSdkVersion 21/g' {} +
+          find android -name "build.gradle" -exec sed -i 's/targetSdkVersion .*/targetSdkVersion 34/g' {} +
+          find android -name "build.gradle.kts" -exec sed -i 's/compileSdk = .*/compileSdk = 34/g' {} +
+          find android -name "build.gradle.kts" -exec sed -i 's/minSdk = .*/minSdk = 21/g' {} +
+          find android -name "build.gradle.kts" -exec sed -i 's/targetSdk = .*/targetSdk = 34/g' {} +
 
       - name: Inject OpenVPN Service & Permissions
         run: |
@@ -89,7 +90,7 @@ jobs:
         run: flutter pub get
 
       - name: Build APK
-        run: flutter build apk --release
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
